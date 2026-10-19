@@ -1,46 +1,40 @@
-import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+import telebot
+from telebot import types
 
 BOT_TOKEN = "8959233284:AAFhxYO5dJysBNhgub2sZ3IaJQ9pFEq5y1Y"
 ADMIN_ID = 8907869447 
 UPI_ID = "rajulaldangi532@ybl"
 
-SERVICES = {
-    "insta_followers": {"name": "📸 Instagram Followers 1K", "price": 70},
-    "insta_likes": {"name": "❤️ Instagram Likes 1K", "price": 40},
-    "yt_views": {"name": "▶️ YouTube Views 1K", "price": 50},
-    "tg_members": {"name": "✈️ Telegram Members 1K", "price": 100},
-}
+bot = telebot.TeleBot(BOT_TOKEN)
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton(f"{s['name']} - ₹{s['price']}", callback_data=key)] for key, s in SERVICES.items()]
-    await update.message.reply_text("🔥 *SMM PANEL* 🔥\nService select karo:", reply_markup=InlineKeyboardMarkup(keyboard), parse_mode='Markdown')
+@bot.message_handler(commands=['start'])
+def start(message):
+    markup = types.InlineKeyboardMarkup(row_width=1)
+    markup.add(
+        types.InlineKeyboardButton("📸 Instagram Followers 1K - ₹70", callback_data="insta_followers"),
+        types.InlineKeyboardButton("❤️ Instagram Likes 1K - ₹40", callback_data="insta_likes"),
+        types.InlineKeyboardButton("▶️ YouTube Views 1K - ₹50", callback_data="yt_views"),
+        types.InlineKeyboardButton("✈️ Telegram Members 1K - ₹100", callback_data="tg_members")
+    )
+    bot.send_message(message.chat.id, "🔥 *SMM PANEL* 🔥\nService select karo:", reply_markup=markup, parse_mode='Markdown')
 
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    context.user_data['selected'] = query.data
-    service = SERVICES[query.data]
-    await query.message.reply_text(f"✅ {service['name']}\nPrice: ₹{service['price']}\n\nApna Link bhejo:")
+@bot.callback_query_handler(func=lambda call: True)
+def callback(call):
+    service_map = {
+        "insta_followers": "Instagram Followers 1K - ₹70",
+        "insta_likes": "Instagram Likes 1K - ₹40",
+        "yt_views": "YouTube Views 1K - ₹50",
+        "tg_members": "Telegram Members 1K - ₹100"
+    }
+    bot.send_message(call.message.chat.id, f"✅ {service_map[call.data]}\n\nApna Link bhejo:\nExample: https://instagram.com/username")
+    bot.register_next_step_handler(call.message, lambda m: payment_step(m, call.data))
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if 'selected' not in context.user_data:
-        return
-    service = SERVICES[context.user_data['selected']]
-    link = update.message.text
-    await update.message.reply_text(f"Link: {link}\n💰 Payment: UPI `{UPI_ID}` - ₹{service['price']}\nScreenshot bhejo.", parse_mode='Markdown')
+def payment_step(message, service):
+    link = message.text
+    bot.send_message(message.chat.id, f"Link: {link}\n\n💰 Payment karo:\nUPI: `{UPI_ID}`\nScreenshot bhejo.", parse_mode='Markdown')
     try:
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"NEW ORDER\nUser: @{update.effective_user.username}\nService: {service['name']}\nLink: {link}")
+        bot.send_message(ADMIN_ID, f"NEW ORDER!\nUser: @{message.from_user.username}\nService: {service}\nLink: {link}")
     except: pass
 
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(button_click))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-    print("Bot Started...")
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
+print("Bot Started...")
+bot.infinity_polling()
